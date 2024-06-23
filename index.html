@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Platformer Game</title>
+  <style>
+    /* Add some basic styling to our game */
+    canvas {
+      border: 1px solid black;
+    }
+    #start-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: black;
+      cursor: pointer;
+      display: block;
+    }
+    #pause-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 24px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: black;
+      cursor: pointer;
+      display: none;
+    }
+    #reset-button {
+      position: absolute;
+      top: 10px;
+      right: 100px;
+      font-size: 24px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: black;
+      cursor: pointer;
+      display: none;
+    }
+    #score-display {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      color: black;
+    }
+    #time-display {
+      position: absolute;
+      top: 40px;
+      left: 10px;
+      font-size: 24px;
+      color: black;
+    }
+    #game-over-display {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: red;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <button id="start-button" onclick="startGame()">Iniciar Jogo</button>
+  <button id="pause-button" onclick="pauseGame()">Pausar</button>
+  <button id="reset-button" onclick="resetGame()">Reiniciar</button>
+  <div id="score-display">Score: 0</div>
+  <div id="time-display">Tempo: 0s</div>
+  <div id="game-over-display">Game Over!</div>
+  <script>
+    let canvas = document.getElementById("gameCanvas");
+    let ctx = canvas.getContext("2d");
+    let player = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      vx: 0,
+      vy: 0,
+      width: 50,
+      height: 50,
+      jumping: false,
+      lives: 3
+    };
+    let platforms = new Array(99);
+    let currentLevel = 1;
+    let maxLevels = 10;
+    let levels = [
+      {
+        platforms: 16,
+        platformWidth: 100,
+        platformHeight: 20,
+        gravity: 0.5,
+        platformSpeed: 2
+      },
+      {
+        platforms: 20,
+        platformWidth: 80,
+        platformHeight: 15,
+        gravity: 0.6,
+        platformSpeed: 2.5
+      },
+      {
+        platforms: 24,
+        platformWidth: 60,
+        platformHeight: 10,
+        gravity: 0.7,
+        platformSpeed: 3
+      },
+      //...
+    ];
+    let score = 0;
+    let time = 0;
+    let paused = false;
+    let gameOver = false;
+
+    function generatePlatforms(level) {
+      let sectionWidth = canvas.width / 4;
+      let sectionHeight = canvas.height / 4;
+      let platformsPerSection = 4;
+
+      for (let i = 0; i < level.platforms; i++) {
+        let sectionX = Math.floor(i / platformsPerSection) * sectionWidth;
+        let sectionY = Math.floor(i % platformsPerSection) * sectionHeight;
+        let x = sectionX + Math.random() * (sectionWidth - level.platformWidth);
+        let y = sectionY + Math.random() * (sectionHeight - level.platformHeight);
+        let w = level.platformWidth;
+        let h = level.platformHeight;
+        platforms[i] = { x: x, y: y, w: w, h: h, vy: level.platformSpeed };
+      }
+    }
+
+    function loadLevel(levelNumber) {
+      let level = levels[levelNumber - 1];
+      generatePlatforms(level);
+      player.vy = 0;
+      player.jumping = false;
+      currentLevel= levelNumber;
+    }
+
+    function startGame() {
+      document.getElementById("start-button").style.display = "none";
+      document.getElementById("pause-button").style.display = "block";
+      document.getElementById("reset-button").style.display = "block";
+      player.x = canvas.width / 2;
+      player.y = canvas.height / 2;
+      player.lives = 3;
+      score = 0;
+      time = 0;
+      paused = false;
+      gameOver = false;
+      loadLevel(1);
+      update();
+    }
+
+    function pauseGame() {
+      paused =!paused;
+      if (paused) {
+        document.getElementById("pause-button").innerHTML = "Continuar";
+      } else {
+        document.getElementById("pause-button").innerHTML = "Pausar";
+      }
+    }
+
+    function resetGame() {
+      score = 0;
+      time = 0;
+      player.x = canvas.width / 2;
+      player.y = canvas.height / 2;
+      player.vx = 0;
+      player.vy = 0;
+      player.jumping = false;
+      player.lives = 3;
+      loadLevel(1);
+      update();
+      document.getElementById("start-button").style.display = "block";
+      document.getElementById("pause-button").style.display = "none";
+      document.getElementById("reset-button").style.display = "none";
+    }
+
+    function update() {
+      if (!paused && !gameOver) {
+        // Update the player's velocity
+        player.vy += levels[currentLevel - 1].gravity;
+
+        // Update the player's position
+        player.x += player.vx;
+        player.y += player.vy;
+
+        // Check for collisions with platforms
+        for (let i = 0; i < levels[currentLevel - 1].platforms; i++) {
+          let platform = platforms[i];
+          platform.y += platform.vy;
+          if (platform.y + platform.h > canvas.height) {
+            platform.y = -platform.h;
+          }
+          if (checkCollision(player, platform)) {
+            player.vy = 0;
+            player.y = platform.y - player.height;
+            player.jumping = false;
+          }
+        }
+
+        // Check if the player is on the ground
+        if (player.y + player.height > canvas.height) {
+          player.vy = 0;
+          player.y = canvas.height - player.height;
+          player.jumping = false;
+          player.lives--;
+          if (player.lives === 0) {
+            gameOver = true;
+            document.getElementById("game-over-display").style.display = "block";
+          }
+        }
+
+        // Keep the player near the center of the screen
+        if (player.y < canvas.height / 2) {
+          player.y = canvas.height / 2;
+        }
+
+        // Update the score and time
+        score += 1;
+        time += 1;
+        document.getElementById("score-display").innerHTML = "Score: " + score;
+        document.getElementById("time-display").innerHTML = "Tempo: " + time + "s";
+      }
+
+      // Clear the canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw the player
+      ctx.fillStyle = "red";
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+
+      // Draw the platforms
+      ctx.fillStyle = "green";
+      for (let i = 0; i < levels[currentLevel - 1].platforms; i++) {
+        let platform = platforms[i];
+        ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+      }
+
+      // Request the next frame
+      requestAnimationFrame(update);
+    }
+
+    function checkCollision(rect1, rect2) {
+      if (rect1.x + rect1.width > rect2.x &&
+          rect1.x < rect2.x + rect2.w &&
+          rect1.y + rect1.height > rect2.y &&
+          rect1.y < rect2.y + rect2.h) {
+        return true;
+      }
+      return false;
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "ArrowLeft") {
+        player.vx = -5;
+      } else if (event.key === "ArrowRight") {
+        player.vx = 5;
+      } else if (event.key === "ArrowUp" &&!player.jumping) {
+        player.vy = -15;
+        player.jumping = true;
+      }
+    });
+
+    document.addEventListener("keyup", function(event) {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        player.vx = 0;
+      }
+    });
+  </script>
+</body>
+</html>
